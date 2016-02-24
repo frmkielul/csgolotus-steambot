@@ -1,0 +1,9 @@
+packages
+.nuget
+.vs
+SteamTrade
+SteamBotUnitTest
+Docs
+Bin
+triggerappveyor.txt
+SteamBotUnitTest.sln
