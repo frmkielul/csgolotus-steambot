@@ -11,10 +11,13 @@ using Newtonsoft.Json;
 
 namespace FrankUtils {
     public class Item {
+        // Steam ID to send trade offer to
         public string sid { get; set; }
+        // market_hash_name of the item
         public string id { get; set; }
+        // value in USD of the skins
+        public float value { get; set; }
     }
-
 }
 
 namespace SteamBot
@@ -62,45 +65,60 @@ namespace SteamBot
             Log.Info("They want " + myItems.Count + " of my items.");
             Log.Info("And I will get " + theirItems.Count + " of their items.");
 
-            //do validation logic etc
-            if (ValidateItems(myItems, theirItems))
+            string tradeid;
+            if (offer.Accept(out tradeid))
             {
-                string tradeid;
-                if (offer.Accept(out tradeid))
+                Bot.AcceptAllMobileTradeConfirmations();
+                Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
+
+                // Success... Now credit the user in the database.
+                try
                 {
-                    Bot.AcceptAllMobileTradeConfirmations();
-                    Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
+                    cmd.Connection = conn;
 
-                    // Success... Now credit the user in the database.
-                    try
-                    {
-                        cmd.Connection = conn;
+                    cmd.CommandText = "UPDATE users SET credits = @number WHERE STEAMID64 = @text";
+                    cmd.Prepare();
+                        
+                    // TODO: Get the value of the items from the node server
+                    cmd.Parameters.AddWithValue("@number", 1);
+                    cmd.Parameters.AddWithValue("@text", offer.PartnerSteamId.ConvertToUInt64());
 
-                        cmd.CommandText = "UPDATE users SET credits = @number WHERE STEAMID64 = @text";
-                        cmd.Prepare();
+                    cmd.ExecuteNonQuery();
+                } catch (MySqlException ex)
+                {
+                    Log.Warn(ex.Message);
+                }
+            }
+            
+        }
+        public void SendTradeOffer(ulong sid, List<string> items)
+        {
+            /*
+                TODO 2/25/16:
+                    - Fix the unhandled exception when initializing NewTradeOffer()
+                    - Add a check to ensure that the trading partner has been secured by mobile authenticator for 1 week.
+                    - Possibly create a massive database full of pregenerated keys, and add a field to the network data
+                        then test if the key passed matches an unused key in the database. If not, cancel the trade because it was forged.
+            */
+            SteamID playerSID = new SteamID(sid);
 
-                        cmd.Parameters.AddWithValue("@number", 1);
-                        cmd.Parameters.AddWithValue("@text", offer.PartnerSteamId.ConvertToUInt64());
+            var offer = Bot.NewTradeOffer(playerSID);
+            
+            List<long> contextId = new List<long>(); // if this doesn't work remove the 2 and add a line contextId.Add(2);
+            contextId.Add(2);
+            GenericInventory mySteamInventory = new GenericInventory(SteamWeb);
+            mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
 
-                        cmd.ExecuteNonQuery();
-
-                        // TODO: -Test if the user has registered in the csgolotus database before accepting offer
-                    } catch (MySqlException ex)
-                    {
-                        Log.Warn(ex.Message);
+            foreach (var x in mySteamInventory.items)
+            {
+                foreach (var y in items)
+                {
+                    if (mySteamInventory.getDescription(x.Value.assetid).market_hash_name == y) {
+                        offer.Items.AddMyItem(730, 2, Convert.ToUInt32(x.Value.assetid));
+                        Console.WriteLine("Added " + y + " to the offer.");
                     }
                 }
             }
-            else { }
-        }
-        public void SendTradeOffer(SteamID playerSID, List<string> items)
-        {
-            Console.WriteLine("SendTradeOffer() called!");
-            /*creating a new trade offer using their steamid passed by conn_data
-            var offer = Bot.NewTradeOffer(playerSID);
-
-            // Add items as requested by the user on the site using conn_data
-            // offer.Items.AddMyItem(0, 0, 0);
 
             if (offer.Items.NewVersion)
             {
@@ -110,7 +128,7 @@ namespace SteamBot
                     Bot.AcceptAllMobileTradeConfirmations();
                     Log.Success("Trade offer sent : Offer ID " + newOfferId + " to SteamID " + OtherSID);
                 }
-            }*/
+            }
         }
         public void Connect_Socket()
         {
@@ -129,11 +147,11 @@ namespace SteamBot
                 FrankUtils.Item[] json_items = js.Deserialize<FrankUtils.Item[]>(json);
 
                 List<string> items = new List<string>();
-                string steamid64 = json_items[0].sid;
+                ulong steamid64 = Convert.ToUInt64(json_items[0].sid);
                 foreach (var i in json_items) { items.Add(i.id); }
 
                 // Call SendTradeOffer using items and steamid64
-                SendTradeOffer(new SteamID(steamid64), items);
+                SendTradeOffer(steamid64, items);
             });
         }
         public override void OnMessage(string message, EChatEntryType type) { }
@@ -167,31 +185,5 @@ namespace SteamBot
         public override void OnTradeReady(bool ready) { }
 
         public override void OnTradeAccept() { }
-
-        private bool ValidateItems(List<TradeAsset> myAssets, List<TradeAsset> theirAssets)
-        {
-
-            //       -Check current market value of all skins and set the @number parameter to ((valueOfSkins/0.03)*1000)
-            //       - foreach skin in offer, compare to csgolounge schema and += to variable then send to db
-
-            List<long> contextId = new List<long>(); // if this doesn't work remove the 2 and add a line contextId.Add(2);
-            contextId.Add(2);
-            GenericInventory mySteamInventory = new GenericInventory(SteamWeb);
-            mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
-
-            foreach (var i in mySteamInventory.items)
-            {
-                // Print the market hash name of each inventory item to the console
-                // Example output: AK47 | Safari Mesh (Factory New)
-
-                Console.WriteLine(mySteamInventory.getDescription(i.Value.assetid).market_hash_name);
-            }
-
-            /*
-                
-            */
-
-            return false;
-        }
     }
 }
