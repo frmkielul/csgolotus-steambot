@@ -189,6 +189,11 @@ namespace SteamBot
             Dispose(true);
             GC.SuppressFinalize(this);
         }
+
+        internal void Info(ulong assetid)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
 

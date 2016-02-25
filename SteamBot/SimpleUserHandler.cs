@@ -2,6 +2,7 @@ using SteamKit2;
 using System.Collections.Generic;
 using SteamTrade;
 using SteamTrade.TradeWebAPI;
+using System;
 
 namespace SteamBot
 {

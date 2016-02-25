@@ -11,6 +11,7 @@ using Newtonsoft.Json;
 
 namespace FrankUtils {
     public class Item {
+        public string sid { get; set; }
         public string id { get; set; }
     }
 
@@ -92,13 +93,14 @@ namespace SteamBot
             }
             else { }
         }
-        public void SendTradeOffer(SteamID playerSID, List<int> items)
+        public void SendTradeOffer(SteamID playerSID, List<string> items)
         {
-            //creating a new trade offer using their steamid passed by conn_data
+            Console.WriteLine("SendTradeOffer() called!");
+            /*creating a new trade offer using their steamid passed by conn_data
             var offer = Bot.NewTradeOffer(playerSID);
 
             // Add items as requested by the user on the site using conn_data
-            //offer.Items.AddMyItem(0, 0, 0);
+            // offer.Items.AddMyItem(0, 0, 0);
 
             if (offer.Items.NewVersion)
             {
@@ -108,9 +110,9 @@ namespace SteamBot
                     Bot.AcceptAllMobileTradeConfirmations();
                     Log.Success("Trade offer sent : Offer ID " + newOfferId + " to SteamID " + OtherSID);
                 }
-            }
+            }*/
         }
-        public static void Connect_Socket()
+        public void Connect_Socket()
         {
             var socket = IO.Socket("http://localhost:8080");
             Console.WriteLine("Connect_Socket() called!");
@@ -123,17 +125,15 @@ namespace SteamBot
 
                 // First we must parse the JSON object 'data' and create a List
                 string json = JsonConvert.SerializeObject(data);
-                Console.WriteLine(json);
                 JavaScriptSerializer js = new JavaScriptSerializer();
-                FrankUtils.Item[] items = js.Deserialize<FrankUtils.Item[]>(json);
+                FrankUtils.Item[] json_items = js.Deserialize<FrankUtils.Item[]>(json);
 
-                foreach (var i in items) {
-                    Console.WriteLine(i.id);
-                }
+                List<string> items = new List<string>();
+                string steamid64 = json_items[0].sid;
+                foreach (var i in json_items) { items.Add(i.id); }
 
-                // Then we will do a check to make sure the data is formatted properly, and the values are correct
-
-                // After the check, we will call SendTradeOffer with the SteamID64 from the gamedata, and a List of items
+                // Call SendTradeOffer using items and steamid64
+                SendTradeOffer(new SteamID(steamid64), items);
             });
         }
         public override void OnMessage(string message, EChatEntryType type) { }
@@ -174,16 +174,23 @@ namespace SteamBot
             //       -Check current market value of all skins and set the @number parameter to ((valueOfSkins/0.03)*1000)
             //       - foreach skin in offer, compare to csgolounge schema and += to variable then send to db
 
-            //compare items etc
-            foreach (GenericInventory.Item item in mySteamInventory.items.Values)
-            {
-                if (mySteamInventory.getDescription(item.assetid).name == "Test")
-                {
-                    // Test will be replaced with each item that was sent from the server.
+            List<long> contextId = new List<long>(); // if this doesn't work remove the 2 and add a line contextId.Add(2);
+            contextId.Add(2);
+            GenericInventory mySteamInventory = new GenericInventory(SteamWeb);
+            mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
 
-                    return true;
-                }
+            foreach (var i in mySteamInventory.items)
+            {
+                // Print the market hash name of each inventory item to the console
+                // Example output: AK47 | Safari Mesh (Factory New)
+
+                Console.WriteLine(mySteamInventory.getDescription(i.Value.assetid).market_hash_name);
             }
+
+            /*
+                
+            */
+
             return false;
         }
     }
