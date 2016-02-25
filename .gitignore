@@ -1,7 +1,6 @@
 packages
 .nuget
 .vs
-SteamTrade
 SteamBotUnitTest
 Docs
 Bin
