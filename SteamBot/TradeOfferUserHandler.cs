@@ -8,6 +8,7 @@ using TradeAsset = SteamTrade.TradeOffer.TradeOffer.TradeStatusUser.TradeAsset;
 using Quobject.SocketIoClientDotNet.Client;
 using System.Web.Script.Serialization;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace FrankUtils {
     public class Item {
@@ -17,6 +18,8 @@ namespace FrankUtils {
         public string id { get; set; }
         // value in USD of the skins
         public float value { get; set; }
+        // # of that item that they want
+        public int amt { get; set; }
     }
 }
 
@@ -74,28 +77,64 @@ namespace SteamBot
                 // Success... Now credit the user in the database.
                 try
                 {
-                    cmd.Connection = conn;
+                    using (var webClient = new System.Net.WebClient())
+                    {
+                        /* Backpack.TF JSON */
+                        var json_string = webClient.DownloadString("http://backpack.tf/api/IGetMarketPrices/v1/?key=56cd0ca5b98d88be2ef9de16&appid=730");
+                        JObject json_object = JObject.Parse(json_string);
+                        var items_json = json_object["response"]["items"];
 
+                        /* User Inventory */
+                        List<long> contextId = new List<long>();
+                        contextId.Add(2);
+                        GenericInventory theirSteamInventory = new GenericInventory(SteamWeb);
+                        theirSteamInventory.load(730, contextId, OtherSID);
+
+                        float value_of_items = 0.00F;
+
+                        List<string> items_offered = new List<string>();
+
+                        // we need to get market_hash_name for each of theirItems and then
+                        // get the ["value"] index of items_json add += to value_of_items
+                        foreach (var x in theirSteamInventory.items)
+                        {
+                            foreach (var y in theirItems)
+                            {
+                                if ((long)x.Value.assetid == y.AssetId)
+                                {
+                                    items_offered.Add(theirSteamInventory.getDescription(x.Value.assetid).market_hash_name);
+                                }
+                            }
+                        }
+                        // items_offered now contains a list of market_hash_names that the user is offering
+                        foreach (var x in items_offered) 
+                        {
+                            // the only problem i can see happening here is the bp.tf schema not having all of the skins.
+                            // to be safe, i would check to make sure all items are skins, and that they are all found in the schema.
+                            value_of_items += (int)json_object["response"]["items"][x]["value"];
+                        }
+                        // we now have value_of_items.
+                        // convert to credits:
+                        float credits = (value_of_items / (float)0.03) * 100;
+                    }
+                    // Credit user in the database
+                    cmd.Connection = conn;
                     cmd.CommandText = "UPDATE users SET credits = @number WHERE STEAMID64 = @text";
                     cmd.Prepare();
-                        
-                    // TODO: Get the value of the items from the node server
-                    cmd.Parameters.AddWithValue("@number", 1);
+                    cmd.Parameters.AddWithValue("@number", credits);
                     cmd.Parameters.AddWithValue("@text", offer.PartnerSteamId.ConvertToUInt64());
-
                     cmd.ExecuteNonQuery();
                 } catch (MySqlException ex)
                 {
                     Log.Warn(ex.Message);
                 }
             }
-            
         }
         public void SendTradeOffer(ulong sid, List<string> items)
         {
             /*
                 TODO 2/25/16:
-                    - Fix the unhandled exception when initializing NewTradeOffer()
+                    - Fix the unhandled exception when initializing NewTradeOffer() - 
                     - Add a check to ensure that the trading partner has been secured by mobile authenticator for 1 week.
                     - Possibly create a massive database full of pregenerated keys, and add a field to the network data
                         then test if the key passed matches an unused key in the database. If not, cancel the trade because it was forged.
@@ -104,7 +143,7 @@ namespace SteamBot
 
             var offer = Bot.NewTradeOffer(playerSID);
             
-            List<long> contextId = new List<long>(); // if this doesn't work remove the 2 and add a line contextId.Add(2);
+            List<long> contextId = new List<long>();
             contextId.Add(2);
             GenericInventory mySteamInventory = new GenericInventory(SteamWeb);
             mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
@@ -113,22 +152,25 @@ namespace SteamBot
             {
                 foreach (var y in items)
                 {
-                    if (mySteamInventory.getDescription(x.Value.assetid).market_hash_name == y) {
-                        offer.Items.AddMyItem(730, 2, Convert.ToUInt32(x.Value.assetid));
+                    if (mySteamInventory.getDescription(x.Value.assetid).market_hash_name == y)
+                    {
+                        // TODO: Prevent duplicate additions, possibly add a JSON field to mark the # they want.
+                        offer.Items.AddMyItem(730, 2, Convert.ToInt64(x.Value.assetid));
                         Console.WriteLine("Added " + y + " to the offer.");
                     }
                 }
             }
 
-            if (offer.Items.NewVersion)
+            // This probably won't work until scruffybot gets unbanned from trading...
+            /*if (offer.Items.NewVersion)
             {
                 string newOfferId;
                 if (offer.Send(out newOfferId))
                 {
                     Bot.AcceptAllMobileTradeConfirmations();
-                    Log.Success("Trade offer sent : Offer ID " + newOfferId + " to SteamID " + OtherSID);
+                    Log.Success("Trade offer sent : Offer ID " + newOfferId + " to SteamID " + playerSID);
                 }
-            }
+            }*/
         }
         public void Connect_Socket()
         {
@@ -147,7 +189,7 @@ namespace SteamBot
                 FrankUtils.Item[] json_items = js.Deserialize<FrankUtils.Item[]>(json);
 
                 List<string> items = new List<string>();
-                ulong steamid64 = Convert.ToUInt64(json_items[0].sid);
+                ulong steamid64 = Convert.ToUInt64(json_items[0].sid);  // json_items[0] will always be reserved for additional info
                 foreach (var i in json_items) { items.Add(i.id); }
 
                 // Call SendTradeOffer using items and steamid64
