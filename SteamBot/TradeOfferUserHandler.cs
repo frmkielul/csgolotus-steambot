@@ -120,7 +120,7 @@ namespace SteamBot
                 }
             }
         }
-        public void SendTradeOffer(ulong sid, List<string> items)
+        public void SendTradeOffer(ulong sid, List<string> items, string trade_token)
         {
             /*
                 TODO 2/25/16:
@@ -154,7 +154,7 @@ namespace SteamBot
             }
 
             // This probably won't work until scruffybot gets unbanned from trading...
-            if (offer.Items.NewVersion)
+            /*if (offer.Items.NewVersion)
             {
                 string newOfferId;
                 if (offer.Send(out newOfferId))
@@ -162,7 +162,7 @@ namespace SteamBot
                     Bot.AcceptAllMobileTradeConfirmations();
                     Log.Success("Trade offer sent : Offer ID " + newOfferId + " to SteamID " + playerSID);
                 }
-            }
+            }*/
         }
         public void Connect_Socket()
         {
@@ -181,11 +181,14 @@ namespace SteamBot
                 FrankUtils.Item[] json_items = js.Deserialize<FrankUtils.Item[]>(json);
 
                 List<string> items = new List<string>();
-                ulong steamid64 = Convert.ToUInt64(json_items[0].sid);  // json_items[0] will always be reserved for additional info such as t_hash and sid
+                ulong steamid64 = Convert.ToUInt64(json_items[0].sid);  // json_items[0] will always be reserved for additional info such as t_hash, sid, and tradeurl
+                string trade_url = json_items[0].tradeurl;
+                string trade_token = trade_url.Split('&')[1];    // TODO: explode trade_url at the & and take the first index. Should look like "token=iOs-d62d"
+                Console.WriteLine(trade_token);                     // possibly split it by the = sign .Split('=')[2];
                 foreach (var i in json_items) { items.Add(i.id); }
 
-                // Call SendTradeOffer using items and steamid64
-                SendTradeOffer(steamid64, items);
+                // Call SendTradeOffer using items steamid64, and the trade token
+                SendTradeOffer(steamid64, items, trade_token);
             });
         }
         public override void OnMessage(string message, EChatEntryType type) { }
