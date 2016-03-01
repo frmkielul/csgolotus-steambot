@@ -246,8 +246,6 @@ namespace SteamBot
             if (!botThread.IsBusy)
                 botThread.RunWorkerAsync();
             SteamClient.Connect();
-            TradeOfferUserHandler t = new TradeOfferUserHandler(this, this.SteamUser.SteamID);
-            t.Connect_Socket();
             Log.Success("Done Loading Bot!");
             return true; // never get here
         }

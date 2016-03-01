@@ -10,8 +10,10 @@ using System.Web.Script.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace FrankUtils {
-    public class Item {
+namespace FrankUtils
+{
+    public class Item
+    {
         // Steam ID to send trade offer to
         public string sid { get; set; }
         // market_hash_name of the item
@@ -36,6 +38,7 @@ namespace SteamBot
 
         public TradeOfferUserHandler(Bot bot, SteamID sid) : base(bot, sid)
         {
+            Connect_Socket();
             try
             {
                 conn = new MySqlConnection(connection);
@@ -56,13 +59,11 @@ namespace SteamBot
         {
             var myItems = offer.Items.GetMyItems();
             var theirItems = offer.Items.GetTheirItems();
-            Log.Info("They want " + myItems.Count + " of my items.");
-            Log.Info("I will receive " + theirItems.Count + " of their items.");
 
             string tradeid;
             if (offer.Accept(out tradeid))
             {
-                Bot.AcceptAllMobileTradeConfirmations();
+                //Bot.AcceptAllMobileTradeConfirmations();
                 Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
 
                 // Success... Now credit the user in the database.
@@ -79,42 +80,21 @@ namespace SteamBot
                         contextId.Add(2);
                         GenericInventory theirSteamInventory = new GenericInventory(SteamWeb);
                         theirSteamInventory.load(730, contextId, OtherSID);
+                        
+                        /* 
+                            3/1/16 - removed all skin value code... gotta re-do it
+                        */
 
-                        float value_of_items = 0.00F;
-
-                        List<string> items_offered = new List<string>();
-
-                        // We need to populate items_offered with the market_hash_names of each item that was offered to us.
-                        // This is necessary because the TradeAsset class doesn't have a market_hash_name property.
-                        foreach (var x in theirSteamInventory.items)
-                        {
-                            foreach (var y in theirItems)
-                            {
-                                if ((long)x.Value.assetid == y.AssetId)
-                                {
-                                    items_offered.Add(theirSteamInventory.getDescription(x.Value.assetid).market_hash_name);
-                                }
-                            }
-                        }
-                        // items_offered now contains a list of market_hash_names that the user is offering
-                        foreach (var x in items_offered) 
-                        {
-                            // the only problem i can see happening here is the bp.tf schema not having all of the skins.
-                            // to be safe, i would check to make sure all items are skins, and that they are all found in the schema.
-                            value_of_items += (int)json_object["response"]["items"][x]["value"];
-                        }
-                        // we now have value_of_items.
-                        // convert to credits
-                        credits = (value_of_items / (float)0.03) * 100;   // 1000 credits = 0.03 USD
+                        // Credit user in the database
+                        cmd.Connection = conn;
+                        cmd.CommandText = "UPDATE users SET credits = @number WHERE STEAMID64 = @text";
+                        cmd.Prepare();
+                        cmd.Parameters.AddWithValue("@number", credits);
+                        cmd.Parameters.AddWithValue("@text", offer.PartnerSteamId.ConvertToUInt64());
+                        cmd.ExecuteNonQuery();
                     }
-                    // Credit user in the database
-                    cmd.Connection = conn;
-                    cmd.CommandText = "UPDATE users SET credits = @number WHERE STEAMID64 = @text";
-                    cmd.Prepare();
-                    cmd.Parameters.AddWithValue("@number", credits);
-                    cmd.Parameters.AddWithValue("@text", offer.PartnerSteamId.ConvertToUInt64());
-                    cmd.ExecuteNonQuery();
-                } catch (MySqlException ex)
+                }
+                catch (MySqlException ex)
                 {
                     Log.Warn(ex.Message);
                 }
@@ -132,7 +112,7 @@ namespace SteamBot
             SteamID playerSID = new SteamID(sid);
 
             var offer = Bot.NewTradeOffer(playerSID);
-            
+
             List<long> contextId = new List<long>();
             contextId.Add(2);
             GenericInventory mySteamInventory = new GenericInventory(SteamWeb);
@@ -154,7 +134,7 @@ namespace SteamBot
             }
 
             // This probably won't work until scruffybot gets unbanned from trading...
-            /*if (offer.Items.NewVersion)
+            if (offer.Items.NewVersion)
             {
                 string newOfferId;
                 if (offer.Send(out newOfferId))
@@ -162,7 +142,7 @@ namespace SteamBot
                     Bot.AcceptAllMobileTradeConfirmations();
                     Log.Success("Trade offer sent : Offer ID " + newOfferId + " to SteamID " + playerSID);
                 }
-            }*/
+            }
         }
         public void Connect_Socket()
         {
@@ -172,8 +152,8 @@ namespace SteamBot
 
             socket.On("gamedata", (data) =>
             {
-                Console.WriteLine("Data received from CSGO Lotus: ");
-                Console.WriteLine(data);
+                /*Console.WriteLine("Data received from CSGO Lotus: ");
+                Console.WriteLine(data);*/
 
                 // First we must parse the JSON object 'data' and create a List
                 string json = JsonConvert.SerializeObject(data);
@@ -183,7 +163,7 @@ namespace SteamBot
                 List<string> items = new List<string>();
                 ulong steamid64 = Convert.ToUInt64(json_items[0].sid);  // json_items[0] will always be reserved for additional info such as t_hash, sid, and tradeurl
                 string trade_url = json_items[0].tradeurl;
-                string trade_token = trade_url.Split('&')[1];    // TODO: explode trade_url at the & and take the first index. Should look like "token=iOs-d62d"
+                string trade_token = trade_url.Split('=')[2];    // TODO: explode trade_url at the & and take the first index. Should look like "token=iOs-d62d"
                 Console.WriteLine(trade_token);                     // possibly split it by the = sign .Split('=')[2];
                 foreach (var i in json_items) { items.Add(i.id); }
 
