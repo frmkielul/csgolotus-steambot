@@ -60,10 +60,14 @@ namespace SteamBot
             var myItems = offer.Items.GetMyItems();
             var theirItems = offer.Items.GetTheirItems();
 
+            if (myItems.Count > 0)
+            {
+                offer.Decline();
+            }
             string tradeid;
             if (offer.Accept(out tradeid))
             {
-                //Bot.AcceptAllMobileTradeConfirmations();
+                Bot.AcceptAllMobileTradeConfirmations();
                 Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
 
                 // Success... Now credit the user in the database.
@@ -100,19 +104,10 @@ namespace SteamBot
                 }
             }
         }
-        public void SendTradeOffer(ulong sid, List<string> items, string trade_token)
+        public void SendTradeOffer(ulong sid, List<string> items)
         {
-            /*
-                TODO 2/25/16:
-                    - Fix the unhandled exception when initializing NewTradeOffer() - probably doesn't need a fix. only seems to happen if this function is called before the bot fully initializes.
-                    - Add a check to ensure that the trading partner has been secured by mobile authenticator for 1 week.
-                    - Possibly create a massive database full of pregenerated keys, and add a field to the network data
-                        then test if the key passed matches an unused key in the database. If not, cancel the trade because it was forged.
-            */
             SteamID playerSID = new SteamID(sid);
-
             var offer = Bot.NewTradeOffer(playerSID);
-
             List<long> contextId = new List<long>();
             contextId.Add(2);
             GenericInventory mySteamInventory = new GenericInventory(SteamWeb);
@@ -132,8 +127,6 @@ namespace SteamBot
                     }
                 }
             }
-
-            // This probably won't work until scruffybot gets unbanned from trading...
             if (offer.Items.NewVersion)
             {
                 string newOfferId;
@@ -146,15 +139,14 @@ namespace SteamBot
         }
         public void Connect_Socket()
         {
+            // Setup the connection to the server
             var socket = IO.Socket("http://localhost:8080");
-            Console.WriteLine("Connect_Socket() called!");
+            Log.Info("Connect_Socket() called!");
             socket.On(Socket.EVENT_CONNECT, () => { });
 
+            // Listen for gamedata
             socket.On("gamedata", (data) =>
             {
-                /*Console.WriteLine("Data received from CSGO Lotus: ");
-                Console.WriteLine(data);*/
-
                 // First we must parse the JSON object 'data' and create a List
                 string json = JsonConvert.SerializeObject(data);
                 JavaScriptSerializer js = new JavaScriptSerializer();
@@ -163,12 +155,19 @@ namespace SteamBot
                 List<string> items = new List<string>();
                 ulong steamid64 = Convert.ToUInt64(json_items[0].sid);  // json_items[0] will always be reserved for additional info such as t_hash, sid, and tradeurl
                 string trade_url = json_items[0].tradeurl;
-                string trade_token = trade_url.Split('=')[2];    // TODO: explode trade_url at the & and take the first index. Should look like "token=iOs-d62d"
-                Console.WriteLine(trade_token);                     // possibly split it by the = sign .Split('=')[2];
+                string trade_token = trade_url.Split('=')[2];
                 foreach (var i in json_items) { items.Add(i.id); }
 
-                // Call SendTradeOffer using items steamid64, and the trade token
-                SendTradeOffer(steamid64, items, trade_token);
+                if (Bot.GetEscrowDuration(steamid64, trade_token).DaysTheirEscrow != 0)
+                {
+                    Log.Error("Could not send trade offer to SID " + steamid64 + ". Reason: Trade duration > 0");
+                    return;
+                }
+                else
+                {
+                    // The trade will be instantaneous. Send the offer.
+                    SendTradeOffer(steamid64, items);
+                }
             });
         }
         public override void OnMessage(string message, EChatEntryType type) { }
