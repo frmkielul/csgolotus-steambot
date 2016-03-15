@@ -84,19 +84,46 @@ namespace SteamBot
                         contextId.Add(2);
                         GenericInventory theirSteamInventory = new GenericInventory(SteamWeb);
                         theirSteamInventory.load(730, contextId, OtherSID);
-                        
-                        /* 
-                            3/1/16 - removed all skin value code... gotta re-do it
-                        */
 
-                        // Credit user in the database
-                        cmd.Connection = conn;
-                        cmd.CommandText = "UPDATE users SET credits = @number WHERE STEAMID64 = @text";
-                        cmd.Prepare();
-                        cmd.Parameters.AddWithValue("@number", credits);
-                        cmd.Parameters.AddWithValue("@text", offer.PartnerSteamId.ConvertToUInt64());
-                        cmd.ExecuteNonQuery();
+                        float value_of_items = 0.00F;
+
+                        List<string> items_offered = new List<string>();
+
+                        // We need to populate items_offered with the market_hash_names of each item that was offered to us.
+                        // This is necessary because the TradeAsset class doesn't have a market_hash_name property.
+
+                        // foreach item in their steam inventory
+                        foreach (var x in theirSteamInventory.items)
+                        {
+                            // foreach item they offered
+                            foreach (var y in theirItems)
+                            {
+                                if ((long)x.Value.assetid == y.AssetId)
+                                {
+                                    items_offered.Add(theirSteamInventory.getDescription(x.Value.assetid).market_hash_name);
+                                }
+                            }
+                        }
+                        // items_offered now contains a list of market_hash_names that the user is offering
+                        foreach (var x in items_offered)
+                        {
+                            // the only problem i can see happening here is the bp.tf schema not having all of the skins.
+                            // to be safe, i would check to make sure all items are skins, and that they are all found in the schema.
+                            value_of_items += (int)json_object["response"]["items"][x]["value"];
+                            Console.WriteLine("market_hash_name: " + x);
+                        }
+                        // we now have value_of_items.
+                        // convert to credits
+                        credits = (value_of_items / (float)0.03) * 100;   // 1000 credits = 0.03 USD
+                        Console.WriteLine("Credits: " + credits);
                     }
+                    // Credit user in the database
+                    /*cmd.Connection = conn;
+                    cmd.CommandText = "UPDATE users SET credits = @number WHERE STEAMID64 = @text";
+                    cmd.Prepare();
+                    cmd.Parameters.AddWithValue("@number", credits);
+                    cmd.Parameters.AddWithValue("@text", offer.PartnerSteamId.ConvertToUInt64());
+                    cmd.ExecuteNonQuery();*/
                 }
                 catch (MySqlException ex)
                 {
