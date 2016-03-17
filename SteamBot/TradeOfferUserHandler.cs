@@ -44,9 +44,7 @@ namespace SteamBot
                 conn = new MySqlConnection(connection);
                 cmd = new MySqlCommand();
                 conn.Open();
-
                 Log.Success("Successfully connected to MySQL database.");
-                // Success
             }
             catch (MySqlException ex)
             {
@@ -60,10 +58,27 @@ namespace SteamBot
             var myItems = offer.Items.GetMyItems();
             var theirItems = offer.Items.GetTheirItems();
 
+            Console.WriteLine("# mine: " + myItems.Count);
+            Console.WriteLine("# theirs: " + theirItems.Count);
+
+            // Do not allow people to request items from the bot
             if (myItems.Count > 0)
             {
                 offer.Decline();
+                Log.Warn("Declined trade offer #" + offer.TradeOfferId + ". Reason: Requested an item from the bot.");
+                SendChatMessage("Declined trade offer #" + offer.TradeOfferId + ". Reason: Requested an item from the bot.");
             }
+            // Do not allow people to offer non-CS:GO items
+            foreach (var x in theirItems)
+            {
+                if (x.AppId != 730)
+                {
+                    offer.Decline();
+                    Log.Warn("Declined trade offer #" + offer.TradeOfferId + ". Reason: Non-CS:GO items offered.");
+                    SendChatMessage("Declined trade offer #" + offer.TradeOfferId + ". Reason: Non-CS:GO items offered.");
+                }
+            }
+            // All is well. Accept the trade.
             string tradeid;
             if (offer.Accept(out tradeid))
             {
@@ -76,48 +91,27 @@ namespace SteamBot
                     float credits = 0.00F;
                     using (var webClient = new System.Net.WebClient())
                     {
-                        /* Backpack.TF JSON */
+                        // Backpack.tf schema
                         var json_string = webClient.DownloadString("http://backpack.tf/api/IGetMarketPrices/v1/?key=56cd0ca5b98d88be2ef9de16&appid=730");
                         JObject json_object = JObject.Parse(json_string);
-                        /* User Inventory */
-                        List<long> contextId = new List<long>();
-                        contextId.Add(2);
+                        // User's Steam inventory
                         GenericInventory theirSteamInventory = new GenericInventory(SteamWeb);
-                        theirSteamInventory.load(730, contextId, OtherSID);
+                        theirSteamInventory.load(730, new List<long>(2), OtherSID);
 
                         float value_of_items = 0.00F;
 
-                        List<string> items_offered = new List<string>();
-
-                        // We need to populate items_offered with the market_hash_names of each item that was offered to us.
-                        // This is necessary because the TradeAsset class doesn't have a market_hash_name property.
-
-                        // foreach item in their steam inventory
-                        foreach (var x in theirSteamInventory.items)
+                        // this doesnt work
+                        foreach (var x in theirItems)
                         {
-                            // foreach item they offered
-                            foreach (var y in theirItems)
-                            {
-                                if ((long)x.Value.assetid == y.AssetId)
-                                {
-                                    items_offered.Add(theirSteamInventory.getDescription(x.Value.assetid).market_hash_name);
-                                }
-                            }
+                            // Console.WriteLine(theirSteamInventory.getDescription((ulong)x.AssetId).market_hash_name);
+
+                            value_of_items += 10.00F;
                         }
-                        // items_offered now contains a list of market_hash_names that the user is offering
-                        foreach (var x in items_offered)
-                        {
-                            // the only problem i can see happening here is the bp.tf schema not having all of the skins.
-                            // to be safe, i would check to make sure all items are skins, and that they are all found in the schema.
-                            value_of_items += (int)json_object["response"]["items"][x]["value"];
-                            Console.WriteLine("market_hash_name: " + x);
-                        }
-                        // we now have value_of_items.
-                        // convert to credits
+
                         credits = (value_of_items / (float)0.03) * 100;   // 1000 credits = 0.03 USD
                         Console.WriteLine("Credits: " + credits);
                     }
-                    // Credit user in the database
+                    // Credit user in the database... not sure we are doing this properly
                     /*cmd.Connection = conn;
                     cmd.CommandText = "UPDATE users SET credits = @number WHERE STEAMID64 = @text";
                     cmd.Prepare();
@@ -133,12 +127,13 @@ namespace SteamBot
         }
         public void SendTradeOffer(ulong sid, List<string> items)
         {
+            //  steamid64 of website user
             SteamID playerSID = new SteamID(sid);
+            // create a new trade offer with that steamid
             var offer = Bot.NewTradeOffer(playerSID);
-            List<long> contextId = new List<long>();
-            contextId.Add(2);
+            // configure bot's inventory
             GenericInventory mySteamInventory = new GenericInventory(SteamWeb);
-            mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
+            mySteamInventory.load(730, new List<long>(2), Bot.SteamClient.SteamID);
 
             string lastItem = "";
             foreach (var x in mySteamInventory.items)
@@ -147,6 +142,7 @@ namespace SteamBot
                 {
                     if (mySteamInventory.getDescription(x.Value.assetid).market_hash_name == y)
                     {
+                        // This line prevents recieveing multiple of the same item. Remove this in the future and allow that feature.
                         if (y == lastItem) continue;
                         offer.Items.AddMyItem(730, 2, Convert.ToInt64(x.Value.assetid));
                         Console.WriteLine("Added " + y + " to the offer to SteamID " + playerSID);
@@ -168,10 +164,7 @@ namespace SteamBot
         {
             // Setup the connection to the server
             var socket = IO.Socket("http://localhost:8080");
-            Log.Info("Connect_Socket() called!");
-            socket.On(Socket.EVENT_CONNECT, () => { });
 
-            // Listen for gamedata
             socket.On("gamedata", (data) =>
             {
                 // First we must parse the JSON object 'data' and create a List
@@ -179,12 +172,17 @@ namespace SteamBot
                 JavaScriptSerializer js = new JavaScriptSerializer();
                 FrankUtils.Item[] json_items = js.Deserialize<FrankUtils.Item[]>(json);
 
+                // container of selected items
                 List<string> items = new List<string>();
-                ulong steamid64 = Convert.ToUInt64(json_items[0].sid);  // json_items[0] will always be reserved for additional info such as t_hash, sid, and tradeurl
-                string trade_url = json_items[0].tradeurl;
-                string trade_token = trade_url.Split('=')[2];
+                // website user's steamid64... json_items[0] will always be reserved for additional info such as t_hash, sid, and tradeurl
+                ulong steamid64 = Convert.ToUInt64(json_items[0].sid);
+                // website user's trade token... used to check escrow duration.
+                string trade_token = json_items[0].tradeurl.Split('=')[2];
+
+                // populate the items list
                 foreach (var i in json_items) { items.Add(i.id); }
 
+                // check escrow duration and cancel trade if necessary
                 if (Bot.GetEscrowDuration(steamid64, trade_token).DaysTheirEscrow != 0)
                 {
                     Log.Error("Could not send trade offer to SID " + steamid64 + ". Reason: Trade duration > 0");
@@ -192,7 +190,6 @@ namespace SteamBot
                 }
                 else
                 {
-                    // The trade will be instantaneous. Send the offer.
                     SendTradeOffer(steamid64, items);
                 }
             });
