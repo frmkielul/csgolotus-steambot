@@ -353,6 +353,10 @@ namespace SteamBot
                         Log.Error("Failed to deactivate authenticator on this account.");
                     }
                 }
+                else if (command== "acceptmobileconfirmations")
+                {
+                    AcceptAllMobileTradeConfirmations();
+                }
                 else
                 {
                     GetUserHandler(SteamClient.SteamID).OnBotCommand(command);

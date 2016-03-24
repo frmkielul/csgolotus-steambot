@@ -36,8 +36,12 @@ namespace SteamBot
         private MySqlConnection conn;
         private MySqlCommand cmd;
 
+        GenericInventory mySteamInventory;
+
         public TradeOfferUserHandler(Bot bot, SteamID sid) : base(bot, sid)
         {
+            mySteamInventory = new GenericInventory(SteamWeb);
+
             Connect_Socket();
             try
             {
@@ -82,48 +86,44 @@ namespace SteamBot
             string tradeid;
             if (offer.Accept(out tradeid))
             {
+                foreach (var x in theirItems)
+                {
+                    Console.WriteLine(x.AssetId);
+                }
                 Bot.AcceptAllMobileTradeConfirmations();
                 Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
-
-                // Success... Now credit the user in the database.
-                try
-                {
-                    float credits = 0.00F;
-                    using (var webClient = new System.Net.WebClient())
-                    {
-                        // Backpack.tf schema
-                        var json_string = webClient.DownloadString("http://backpack.tf/api/IGetMarketPrices/v1/?key=56cd0ca5b98d88be2ef9de16&appid=730");
-                        JObject json_object = JObject.Parse(json_string);
-                        // User's Steam inventory
-                        GenericInventory theirSteamInventory = new GenericInventory(SteamWeb);
-                        theirSteamInventory.load(730, new List<long>(2), OtherSID);
-
-                        float value_of_items = 0.00F;
-
-                        // this doesnt work
-                        foreach (var x in theirItems)
-                        {
-                            // Console.WriteLine(theirSteamInventory.getDescription((ulong)x.AssetId).market_hash_name);
-
-                            value_of_items += 10.00F;
-                        }
-
-                        credits = (value_of_items / (float)0.03) * 100;   // 1000 credits = 0.03 USD
-                        Console.WriteLine("Credits: " + credits);
-                    }
-                    // Credit user in the database... not sure we are doing this properly
-                    /*cmd.Connection = conn;
-                    cmd.CommandText = "UPDATE users SET credits = @number WHERE STEAMID64 = @text";
-                    cmd.Prepare();
-                    cmd.Parameters.AddWithValue("@number", credits);
-                    cmd.Parameters.AddWithValue("@text", offer.PartnerSteamId.ConvertToUInt64());
-                    cmd.ExecuteNonQuery();*/
-                }
-                catch (MySqlException ex)
-                {
-                    Log.Warn(ex.Message);
-                }
+                CalculateItemValues();
             }
+        }
+        public void CalculateItemValues()
+        {
+            List<long> contextId = new List<long>();
+            contextId.Add(2);
+            mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
+
+            Console.WriteLine("CALLED");
+            foreach (var x in mySteamInventory.items)
+            {
+                Console.WriteLine(x.Value.assetid);
+            }
+
+            /*using (var webClient = new System.Net.WebClient())
+            {
+                // Backpack.tf schema
+                var json_string = webClient.DownloadString("http://backpack.tf/api/IGetMarketPrices/v1/?key=56cd0ca5b98d88be2ef9de16&appid=730");
+                JObject json_object = JObject.Parse(json_string);
+                // USD value of items before credit conversion.
+                float value_of_items = 0.00F;
+                // CSGOLotus credits
+                float credits = 0.00F;
+
+                //Get the market_hash_name of each offered item and fetch the value from json_object. Then convert to credits and send to the database. 
+
+                
+
+                // credits = (value_of_items / (float)0.03) * 100;   // 1000 credits = 0.03 USD
+                // Console.WriteLine("Credits: " + credits);
+            }*/
         }
         public void SendTradeOffer(ulong sid, List<string> items)
         {
@@ -132,8 +132,9 @@ namespace SteamBot
             // create a new trade offer with that steamid
             var offer = Bot.NewTradeOffer(playerSID);
             // configure bot's inventory
-            GenericInventory mySteamInventory = new GenericInventory(SteamWeb);
-            mySteamInventory.load(730, new List<long>(2), Bot.SteamClient.SteamID);
+            List<long> contextId = new List<long>();
+            contextId.Add(2);
+            mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
 
             string lastItem = "";
             foreach (var x in mySteamInventory.items)
