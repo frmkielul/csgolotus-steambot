@@ -92,8 +92,8 @@ namespace SteamBot
                 }
                 Bot.AcceptAllMobileTradeConfirmations();
                 Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
-                CalculateItemValues();
             }
+            CalculateItemValues();
         }
         public void CalculateItemValues()
         {
@@ -101,13 +101,13 @@ namespace SteamBot
             contextId.Add(2);
             mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
 
-            Console.WriteLine("CALLED");
+            /*Console.WriteLine("CALLED");
             foreach (var x in mySteamInventory.items)
             {
                 Console.WriteLine(x.Value.assetid);
             }
 
-            /*using (var webClient = new System.Net.WebClient())
+            using (var webClient = new System.Net.WebClient())
             {
                 // Backpack.tf schema
                 var json_string = webClient.DownloadString("http://backpack.tf/api/IGetMarketPrices/v1/?key=56cd0ca5b98d88be2ef9de16&appid=730");
@@ -145,7 +145,7 @@ namespace SteamBot
                     {
                         // This line prevents recieveing multiple of the same item. Remove this in the future and allow that feature.
                         if (y == lastItem) continue;
-                        offer.Items.AddMyItem(730, 2, Convert.ToInt64(x.Value.assetid));
+                        offer.Items.AddMyItem(730, 2, Convert.ToInt64(x.Value.assetid), 1);
                         Console.WriteLine("Added " + y + " to the offer to SteamID " + playerSID);
                         lastItem = y;
                     }
@@ -187,6 +187,8 @@ namespace SteamBot
                 if (Bot.GetEscrowDuration(steamid64, trade_token).DaysTheirEscrow != 0)
                 {
                     Log.Error("Could not send trade offer to SID " + steamid64 + ". Reason: Trade duration > 0");
+                    SendChatMessage("We're sorry. We could not send you your requested items as you have not been protected by the Steam Mobile Authenticator for one week.");
+                    SendChatMessage("This measure is in place to prevent items from becoming locked in our inventory for extended periods of time, preventing other players from claiming them.");
                     return;
                 }
                 else
