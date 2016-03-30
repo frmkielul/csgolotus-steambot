@@ -26,6 +26,41 @@ namespace FrankUtils
         public int amt { get; set; }
     }
 }
+namespace FUtils2
+{
+    public class Attribute
+    {
+        public UInt64 defindex { get; set; }
+        //public int value { get; set; }
+        public float float_value { get; set; }
+    }
+
+    public class Item
+    {
+        public UInt64 id { get; set; }
+        public UInt64 original_id { get; set; }
+        public UInt64 defindex { get; set; }
+        public UInt64 level { get; set; }
+        public UInt64 quality { get; set; }
+        public UInt64 inventory { get; set; }
+        public UInt64 quantity { get; set; }
+        public UInt64 rarity { get; set; }
+        public bool flag_cannot_trade { get; set; }
+        public bool flag_cannot_craft { get; set; }
+        public List<Attribute> attributes { get; set; }
+    }
+
+    public class Result
+    {
+        public int status { get; set; }
+        public List<Item> items { get; set; }
+    }
+
+    public class RootObject
+    {
+        public Result result { get; set; }
+    }
+}
 
 namespace SteamBot
 {
@@ -37,10 +72,11 @@ namespace SteamBot
         private MySqlCommand cmd;
 
         GenericInventory mySteamInventory;
+        GenericInventory otherSteamInventory;
 
         public TradeOfferUserHandler(Bot bot, SteamID sid) : base(bot, sid)
         {
-            mySteamInventory = new GenericInventory(SteamWeb);
+            mySteamInventory = otherSteamInventory = new GenericInventory(SteamWeb);
 
             Connect_Socket();
             try
@@ -86,48 +122,39 @@ namespace SteamBot
             string tradeid;
             if (offer.Accept(out tradeid))
             {
+                // TODO: Send the information (user's SteamID64, skins offered, etc) to the Socket.io server and the values will be calculated there.
+
+                FUtils2.RootObject json_items;
+                using (var webClient = new System.Net.WebClient())
+                {
+                    string json = webClient.DownloadString("https://api.steampowered.com/IEconItems_730/GetPlayerItems/v1/?key=2457B1C97418CC3095E99484AF2DC660&steamid=" + Convert.ToInt64(offer.PartnerSteamId));
+                    JavaScriptSerializer js = new JavaScriptSerializer();
+                    json_items = js.Deserialize<FUtils2.RootObject>(json);
+                }
+                List<Int64> original_ids = new List<Int64>();
+                original_ids.Add(Convert.ToInt64(offer.PartnerSteamId));
                 foreach (var x in theirItems)
                 {
-                    Console.WriteLine(x.AssetId);
+                    foreach (var y in json_items.result.items)
+                    {
+                        if ((ulong)x.AssetId == y.id)
+                        {
+                            original_ids.Add((long)y.original_id);
+                        }
+                    }
                 }
+                JavaScriptSerializer _js = new JavaScriptSerializer();
+                string _json = _js.Serialize(original_ids);
+                var socket = IO.Socket("http://localhost:8080");
+                socket.Emit("response", _json);
+
                 Bot.AcceptAllMobileTradeConfirmations();
                 Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
             }
-            CalculateItemValues();
-        }
-        public void CalculateItemValues()
-        {
-            List<long> contextId = new List<long>();
-            contextId.Add(2);
-            mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
-
-            /*Console.WriteLine("CALLED");
-            foreach (var x in mySteamInventory.items)
-            {
-                Console.WriteLine(x.Value.assetid);
-            }
-
-            using (var webClient = new System.Net.WebClient())
-            {
-                // Backpack.tf schema
-                var json_string = webClient.DownloadString("http://backpack.tf/api/IGetMarketPrices/v1/?key=56cd0ca5b98d88be2ef9de16&appid=730");
-                JObject json_object = JObject.Parse(json_string);
-                // USD value of items before credit conversion.
-                float value_of_items = 0.00F;
-                // CSGOLotus credits
-                float credits = 0.00F;
-
-                //Get the market_hash_name of each offered item and fetch the value from json_object. Then convert to credits and send to the database. 
-
-                
-
-                // credits = (value_of_items / (float)0.03) * 100;   // 1000 credits = 0.03 USD
-                // Console.WriteLine("Credits: " + credits);
-            }*/
         }
         public void SendTradeOffer(ulong sid, List<string> items)
         {
-            //  steamid64 of website user
+            // steamid64 of website user
             SteamID playerSID = new SteamID(sid);
             // create a new trade offer with that steamid
             var offer = Bot.NewTradeOffer(playerSID);
@@ -136,20 +163,10 @@ namespace SteamBot
             contextId.Add(2);
             mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
 
-            string lastItem = "";
-            foreach (var x in mySteamInventory.items)
+            foreach (var x in items)
             {
-                foreach (var y in items)
-                {
-                    if (mySteamInventory.getDescription(x.Value.assetid).market_hash_name == y)
-                    {
-                        // This line prevents recieveing multiple of the same item. Remove this in the future and allow that feature.
-                        if (y == lastItem) continue;
-                        offer.Items.AddMyItem(730, 2, Convert.ToInt64(x.Value.assetid), 1);
-                        Console.WriteLine("Added " + y + " to the offer to SteamID " + playerSID);
-                        lastItem = y;
-                    }
-                }
+                offer.Items.AddMyItem(730, 2, Convert.ToInt64(x), 1);
+                Console.WriteLine("Added " + x + " to the offer to SteamID " + playerSID);
             }
             if (offer.Items.NewVersion)
             {
@@ -181,20 +198,9 @@ namespace SteamBot
                 string trade_token = json_items[0].tradeurl.Split('=')[2];
 
                 // populate the items list
-                foreach (var i in json_items) { items.Add(i.id); }
-
-                // check escrow duration and cancel trade if necessary
-                if (Bot.GetEscrowDuration(steamid64, trade_token).DaysTheirEscrow != 0)
-                {
-                    Log.Error("Could not send trade offer to SID " + steamid64 + ". Reason: Trade duration > 0");
-                    SendChatMessage("We're sorry. We could not send you your requested items as you have not been protected by the Steam Mobile Authenticator for one week.");
-                    SendChatMessage("This measure is in place to prevent items from becoming locked in our inventory for extended periods of time, preventing other players from claiming them.");
-                    return;
-                }
-                else
-                {
-                    SendTradeOffer(steamid64, items);
-                }
+                foreach (var i in json_items) { items.Add(i.id); Console.WriteLine(i.id);  }
+                items.RemoveAt(0);  // weird hack?
+                SendTradeOffer(steamid64, items);
             });
         }
         public override void OnMessage(string message, EChatEntryType type) { }
