@@ -1,5 +1,4 @@
-﻿using MySql.Data.MySqlClient;
-using SteamKit2;
+﻿using SteamKit2;
 using SteamTrade;
 using SteamTrade.TradeOffer;
 using System;
@@ -10,7 +9,7 @@ using System.Web.Script.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace FrankUtils
+namespace POSTData
 {
     public class Item
     {
@@ -26,7 +25,7 @@ namespace FrankUtils
         public int amt { get; set; }
     }
 }
-namespace FUtils2
+namespace InventoryData
 {
     public class Attribute
     {
@@ -37,14 +36,14 @@ namespace FUtils2
 
     public class Item
     {
-        public UInt64 id { get; set; }
-        public UInt64 original_id { get; set; }
-        public UInt64 defindex { get; set; }
-        public UInt64 level { get; set; }
-        public UInt64 quality { get; set; }
-        public UInt64 inventory { get; set; }
-        public UInt64 quantity { get; set; }
-        public UInt64 rarity { get; set; }
+        public Int64 id { get; set; }
+        public Int64 original_id { get; set; }
+        public Int64 defindex { get; set; }
+        public Int64 level { get; set; }
+        public Int64 quality { get; set; }
+        public Int64 inventory { get; set; }
+        public Int64 quantity { get; set; }
+        public Int64 rarity { get; set; }
         public bool flag_cannot_trade { get; set; }
         public bool flag_cannot_craft { get; set; }
         public List<Attribute> attributes { get; set; }
@@ -66,30 +65,15 @@ namespace SteamBot
 {
     public class TradeOfferUserHandler : UserHandler
     {
-        /* --- Setup database connection to csgolotus --- */
-        private string connection = "server=localhost;uid=csgolotus;" + "pwd=ufUL3e86NqUqjhV;database=csgolotus;";
-        private MySqlConnection conn;
-        private MySqlCommand cmd;
-
         GenericInventory mySteamInventory;
         GenericInventory otherSteamInventory;
+        JavaScriptSerializer js;
 
         public TradeOfferUserHandler(Bot bot, SteamID sid) : base(bot, sid)
         {
             mySteamInventory = otherSteamInventory = new GenericInventory(SteamWeb);
-
+            js = new JavaScriptSerializer();
             Connect_Socket();
-            try
-            {
-                conn = new MySqlConnection(connection);
-                cmd = new MySqlCommand();
-                conn.Open();
-                Log.Success("Successfully connected to MySQL database.");
-            }
-            catch (MySqlException ex)
-            {
-                Log.Warn(ex.Message);
-            }
         }
 
         // Receiving a trade offer
@@ -97,9 +81,6 @@ namespace SteamBot
         {
             var myItems = offer.Items.GetMyItems();
             var theirItems = offer.Items.GetTheirItems();
-
-            Console.WriteLine("# mine: " + myItems.Count);
-            Console.WriteLine("# theirs: " + theirItems.Count);
 
             // Do not allow people to request items from the bot
             if (myItems.Count > 0)
@@ -122,31 +103,32 @@ namespace SteamBot
             string tradeid;
             if (offer.Accept(out tradeid))
             {
-                // TODO: Send the information (user's SteamID64, skins offered, etc) to the Socket.io server and the values will be calculated there.
-
-                FUtils2.RootObject json_items;
+                // potential issue: the webClient downloads the string after the transaction has been processed, so the assetid is no longer
+                // existant in the json string. Or, the foreach loop is confusing me and im doing something wrong.
+                InventoryData.RootObject json_items;
                 using (var webClient = new System.Net.WebClient())
                 {
                     string json = webClient.DownloadString("https://api.steampowered.com/IEconItems_730/GetPlayerItems/v1/?key=2457B1C97418CC3095E99484AF2DC660&steamid=" + Convert.ToInt64(offer.PartnerSteamId));
-                    JavaScriptSerializer js = new JavaScriptSerializer();
-                    json_items = js.Deserialize<FUtils2.RootObject>(json);
+                    json_items = js.Deserialize<InventoryData.RootObject>(json);
                 }
-                List<Int64> original_ids = new List<Int64>();
-                original_ids.Add(Convert.ToInt64(offer.PartnerSteamId));
+
+                List<Int64> original_ids = new List<Int64>() { Convert.ToInt64(offer.PartnerSteamId) };
+
+                // compare offered items and their inventory data
                 foreach (var x in theirItems)
                 {
                     foreach (var y in json_items.result.items)
                     {
-                        if ((ulong)x.AssetId == y.id)
-                        {
-                            original_ids.Add((long)y.original_id);
-                        }
+                        Console.WriteLine("inside ran");
+                        break;
                     }
+                    Console.WriteLine("Outside ran");
                 }
-                JavaScriptSerializer _js = new JavaScriptSerializer();
-                string _json = _js.Serialize(original_ids);
+
+                // Send the data to the Socket.io server
+                string json_serialized = js.Serialize(original_ids);
                 var socket = IO.Socket("http://localhost:8080");
-                socket.Emit("response", _json);
+                socket.Emit("response", json_serialized);
 
                 Bot.AcceptAllMobileTradeConfirmations();
                 Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
@@ -154,14 +136,8 @@ namespace SteamBot
         }
         public void SendTradeOffer(ulong sid, List<string> items)
         {
-            // steamid64 of website user
             SteamID playerSID = new SteamID(sid);
-            // create a new trade offer with that steamid
             var offer = Bot.NewTradeOffer(playerSID);
-            // configure bot's inventory
-            List<long> contextId = new List<long>();
-            contextId.Add(2);
-            mySteamInventory.load(730, contextId, Bot.SteamClient.SteamID);
 
             foreach (var x in items)
             {
@@ -187,17 +163,11 @@ namespace SteamBot
             {
                 // First we must parse the JSON object 'data' and create a List
                 string json = JsonConvert.SerializeObject(data);
-                JavaScriptSerializer js = new JavaScriptSerializer();
-                FrankUtils.Item[] json_items = js.Deserialize<FrankUtils.Item[]>(json);
+                POSTData.Item[] json_items = js.Deserialize<POSTData.Item[]>(json);
 
-                // container of selected items
                 List<string> items = new List<string>();
-                // website user's steamid64... json_items[0] will always be reserved for additional info such as t_hash, sid, and tradeurl
                 ulong steamid64 = Convert.ToUInt64(json_items[0].sid);
-                // website user's trade token... used to check escrow duration.
-                string trade_token = json_items[0].tradeurl.Split('=')[2];
 
-                // populate the items list
                 foreach (var i in json_items) { items.Add(i.id); Console.WriteLine(i.id);  }
                 items.RemoveAt(0);  // weird hack?
                 SendTradeOffer(steamid64, items);
