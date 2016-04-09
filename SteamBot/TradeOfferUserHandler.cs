@@ -67,12 +67,12 @@ namespace SteamBot
     {
         GenericInventory mySteamInventory;
         GenericInventory otherSteamInventory;
-        JavaScriptSerializer js;
+        JavaScriptSerializer jsSerializer;
 
         public TradeOfferUserHandler(Bot bot, SteamID sid) : base(bot, sid)
         {
             mySteamInventory = otherSteamInventory = new GenericInventory(SteamWeb);
-            js = new JavaScriptSerializer();
+            jsSerializer = new JavaScriptSerializer();
             Connect_Socket();
         }
 
@@ -109,7 +109,7 @@ namespace SteamBot
                 using (var webClient = new System.Net.WebClient())
                 {
                     string json = webClient.DownloadString("https://api.steampowered.com/IEconItems_730/GetPlayerItems/v1/?key=2457B1C97418CC3095E99484AF2DC660&steamid=" + Convert.ToInt64(offer.PartnerSteamId));
-                    json_items = js.Deserialize<InventoryData.RootObject>(json);
+                    json_items = jsSerializer.Deserialize<InventoryData.RootObject>(json);
                 }
 
                 List<Int64> original_ids = new List<Int64>() { Convert.ToInt64(offer.PartnerSteamId) };
@@ -126,7 +126,7 @@ namespace SteamBot
                 }
 
                 // Send the data to the Socket.io server
-                string json_serialized = js.Serialize(original_ids);
+                string json_serialized = jsSerializer.Serialize(original_ids);
                 var socket = IO.Socket("http://localhost:8080");
                 socket.Emit("response", json_serialized);
 
@@ -163,7 +163,7 @@ namespace SteamBot
             {
                 // First we must parse the JSON object 'data' and create a List
                 string json = JsonConvert.SerializeObject(data);
-                POSTData.Item[] json_items = js.Deserialize<POSTData.Item[]>(json);
+                POSTData.Item[] json_items = jsSerializer.Deserialize<POSTData.Item[]>(json);
 
                 List<string> items = new List<string>();
                 ulong steamid64 = Convert.ToUInt64(json_items[0].sid);
