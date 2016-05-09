@@ -1,3 +1,0 @@
-Scruffybot: 2725770A29064372233CB9F5636B30D5
-
-backpack.tf API key: 56cd0ca5b98d88be2ef9de16
