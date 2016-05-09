@@ -3,11 +3,9 @@ using SteamTrade;
 using SteamTrade.TradeOffer;
 using System;
 using System.Collections.Generic;
-using TradeAsset = SteamTrade.TradeOffer.TradeOffer.TradeStatusUser.TradeAsset;
 using Quobject.SocketIoClientDotNet.Client;
 using System.Web.Script.Serialization;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace POSTData
 {
