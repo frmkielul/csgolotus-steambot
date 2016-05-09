@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\SteamTrade\bin\Debug\SteamTrade.dll
 C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\SteamTrade\bin\Debug\SteamTrade.pdb
 C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\SteamTrade\bin\Debug\Newtonsoft.Json.dll
@@ -13,8 +12,6 @@ C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\SteamTrade\bin\Debug\SteamKit
 C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\SteamTrade\obj\Debug\SteamTrade.csprojResolveAssemblyReference.cache
 C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\SteamTrade\obj\Debug\SteamTrade.dll
 C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\SteamTrade\obj\Debug\SteamTrade.pdb
-=======
->>>>>>> 76c786736f1e56b6c1edc2cdf394437bcd8512c6
 C:\Users\Frank\Desktop\SteamBot\SteamTrade\bin\Debug\SteamTrade.dll
 C:\Users\Frank\Desktop\SteamBot\SteamTrade\bin\Debug\SteamTrade.pdb
 C:\Users\Frank\Desktop\SteamBot\SteamTrade\bin\Debug\Newtonsoft.Json.dll
@@ -26,9 +23,6 @@ C:\Users\Frank\Desktop\SteamBot\SteamTrade\bin\Debug\protobuf-net.pdb
 C:\Users\Frank\Desktop\SteamBot\SteamTrade\bin\Debug\protobuf-net.xml
 C:\Users\Frank\Desktop\SteamBot\SteamTrade\bin\Debug\SteamAuth.pdb
 C:\Users\Frank\Desktop\SteamBot\SteamTrade\bin\Debug\SteamKit2.xml
-<<<<<<< HEAD
-=======
 C:\Users\Frank\Desktop\SteamBot\SteamTrade\obj\Debug\SteamTrade.csprojResolveAssemblyReference.cache
->>>>>>> 76c786736f1e56b6c1edc2cdf394437bcd8512c6
 C:\Users\Frank\Desktop\SteamBot\SteamTrade\obj\Debug\SteamTrade.dll
 C:\Users\Frank\Desktop\SteamBot\SteamTrade\obj\Debug\SteamTrade.pdb

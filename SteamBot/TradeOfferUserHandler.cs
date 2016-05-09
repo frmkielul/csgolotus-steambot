@@ -100,12 +100,6 @@ namespace SteamBot
                 }
             }
             InventoryData.RootObject json_items;
-            using (var webClient = new System.Net.WebClient())
-            {
-                string json = webClient.DownloadString("https://api.steampowered.com/IEconItems_730/GetPlayerItems/v1/?key=2457B1C97418CC3095E99484AF2DC660&steamid=" + Convert.ToInt64(offer.PartnerSteamId));
-                json_items = jsSerializer.Deserialize<InventoryData.RootObject>(json);
-            }
-			InventoryData.RootObject json_items;
 			using (var webClient = new System.Net.WebClient())
 			{
 				string json = webClient.DownloadString("https://api.steampowered.com/IEconItems_730/GetPlayerItems/v1/?key=2457B1C97418CC3095E99484AF2DC660&steamid=" + Convert.ToInt64(offer.PartnerSteamId));

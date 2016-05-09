@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\Bin\Debug\SteamBot.exe.config
 C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\SteamBot\obj\Debug\SteamBot.exe
 C:\Users\Frank\Desktop\SteamBot\csgolotus-steambot\SteamBot\obj\Debug\SteamBot.pdb
@@ -11,11 +10,3 @@ C:\Users\Frank\Desktop\SteamBot\Bin\Debug\SteamBot.pdb
 C:\Users\Frank\Desktop\SteamBot\SteamBot\obj\Debug\scruffybot.csprojResolveAssemblyReference.cache
 C:\Users\Frank\Desktop\SteamBot\SteamBot\obj\Debug\SteamBot.exe
 C:\Users\Frank\Desktop\SteamBot\SteamBot\obj\Debug\SteamBot.pdb
-=======
-C:\Users\Frank\Desktop\SteamBot\Bin\Debug\SteamBot.exe.config
-C:\Users\Frank\Desktop\SteamBot\Bin\Debug\SteamBot.exe
-C:\Users\Frank\Desktop\SteamBot\Bin\Debug\SteamBot.pdb
-C:\Users\Frank\Desktop\SteamBot\SteamBot\obj\Debug\SteamBot.exe
-C:\Users\Frank\Desktop\SteamBot\SteamBot\obj\Debug\SteamBot.pdb
-C:\Users\Frank\Desktop\SteamBot\SteamBot\obj\Debug\scruffybot.csprojResolveAssemblyReference.cache
->>>>>>> 76c786736f1e56b6c1edc2cdf394437bcd8512c6
