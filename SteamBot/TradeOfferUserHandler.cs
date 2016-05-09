@@ -99,10 +99,23 @@ namespace SteamBot
                     SendChatMessage("Declined trade offer #" + offer.TradeOfferId + ". Reason: Non-CS:GO items offered.");
                 }
             }
+<<<<<<< HEAD
+            InventoryData.RootObject json_items;
+            using (var webClient = new System.Net.WebClient())
+            {
+                string json = webClient.DownloadString("https://api.steampowered.com/IEconItems_730/GetPlayerItems/v1/?key=2457B1C97418CC3095E99484AF2DC660&steamid=" + Convert.ToInt64(offer.PartnerSteamId));
+                json_items = jsSerializer.Deserialize<InventoryData.RootObject>(json);
+            }
+=======
+>>>>>>> 76c786736f1e56b6c1edc2cdf394437bcd8512c6
             // All is well. Accept the trade.
             string tradeid;
             if (offer.Accept(out tradeid))
             {
+<<<<<<< HEAD
+                List<Int64> original_ids = new List<Int64>() { Convert.ToInt64(offer.PartnerSteamId) };
+                // Populate original_ids by comparing the asset_ids to the original_ids in the user's Steam inventory
+=======
                 // potential issue: the webClient downloads the string after the transaction has been processed, so the assetid is no longer
                 // existant in the json string. Or, the foreach loop is confusing me and im doing something wrong.
                 InventoryData.RootObject json_items;
@@ -115,14 +128,23 @@ namespace SteamBot
                 List<Int64> original_ids = new List<Int64>() { Convert.ToInt64(offer.PartnerSteamId) };
 
                 // compare offered items and their inventory data
+>>>>>>> 76c786736f1e56b6c1edc2cdf394437bcd8512c6
                 foreach (var x in theirItems)
                 {
                     foreach (var y in json_items.result.items)
                     {
+<<<<<<< HEAD
+                        if (x.AssetId == y.id)
+                        {
+                            original_ids.Add(y.original_id);
+                        }
+                    }
+=======
                         Console.WriteLine("inside ran");
                         break;
                     }
                     Console.WriteLine("Outside ran");
+>>>>>>> 76c786736f1e56b6c1edc2cdf394437bcd8512c6
                 }
 
                 // Send the data to the Socket.io server
@@ -168,7 +190,11 @@ namespace SteamBot
                 List<string> items = new List<string>();
                 ulong steamid64 = Convert.ToUInt64(json_items[0].sid);
 
+<<<<<<< HEAD
+                foreach (var i in json_items) { items.Add(i.id); Console.WriteLine(i.id); }
+=======
                 foreach (var i in json_items) { items.Add(i.id); Console.WriteLine(i.id);  }
+>>>>>>> 76c786736f1e56b6c1edc2cdf394437bcd8512c6
                 items.RemoveAt(0);  // weird hack?
                 SendTradeOffer(steamid64, items);
             });
