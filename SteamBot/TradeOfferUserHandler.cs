@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using Quobject.SocketIoClientDotNet.Client;
 using System.Web.Script.Serialization;
 using Newtonsoft.Json;
+using System.Net;
 
 namespace POSTData
 {
@@ -97,11 +98,23 @@ namespace SteamBot
                     SendChatMessage("Declined trade offer #" + offer.TradeOfferId + ". Reason: Non-CS:GO items offered.");
                 }
             }
-            InventoryData.RootObject json_items;
+            // There is probably a more elegant way of doing this. Initializing json_items to null seems a bit hackey
+            InventoryData.RootObject json_items = null;
 			using (var webClient = new System.Net.WebClient())
 			{
-				string json = webClient.DownloadString("https://api.steampowered.com/IEconItems_730/GetPlayerItems/v1/?key=2457B1C97418CC3095E99484AF2DC660&steamid=" + Convert.ToInt64(offer.PartnerSteamId));
-				json_items = jsSerializer.Deserialize<InventoryData.RootObject>(json);
+                try
+                {
+                    string json = webClient.DownloadString("https://api.steampowered.com/IEconItems_730/GetPlayerItems/v1/?key=2457B1C97418CC3095E99484AF2DC660&steamid=" + Convert.ToInt64(offer.PartnerSteamId));
+                    json_items = jsSerializer.Deserialize<InventoryData.RootObject>(json);
+                }
+                catch (WebException e)
+                {
+                    Log.Warn(e.Message);
+                    offer.Decline();
+                    SendChatMessage("Unfortunately, the CS:GO inventory servers are down/delayed, and we are unable to process your transaction. Please try again later. You can view the status of Steam servers at https://steamstat.us/");
+                    return;
+                }
+				
 			}
             // All is well. Accept the trade.
             string tradeid;
@@ -118,8 +131,7 @@ namespace SteamBot
                             original_ids.Add(y.original_id);
                         }
                     }
-				}
-
+                }
                 // Send the data to the Socket.io server
                 string json_serialized = jsSerializer.Serialize(original_ids);
                 var socket = IO.Socket("http://localhost:8080");
