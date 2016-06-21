@@ -39,7 +39,7 @@ namespace SteamBot
         #region Private variables
         private Task<Inventory> myInventoryTask;
         private TradeManager tradeManager;
-        private TradeOfferManager tradeOfferManager;
+        public TradeOfferManager tradeOfferManager;
         private int tradePollingInterval;
         private string myUserNonce;
         private string myUniqueId;

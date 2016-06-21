@@ -23,6 +23,10 @@ namespace POSTData
         // # of that item that they want
         public int amt { get; set; }
     }
+    public class Offer
+    {
+        public string offerId { get; set; }
+    }
 }
 namespace InventoryData
 {
@@ -98,44 +102,19 @@ namespace SteamBot
                     SendChatMessage("Declined trade offer #" + offer.TradeOfferId + ". Reason: Non-CS:GO items offered.");
                 }
             }
-            // There is probably a more elegant way of doing this. Initializing json_items to null seems a bit hackey
-            InventoryData.RootObject json_items = null;
-			using (var webClient = new System.Net.WebClient())
-			{
-                try
-                {
-                    string json = webClient.DownloadString("https://api.steampowered.com/IEconItems_730/GetPlayerItems/v1/?key=2457B1C97418CC3095E99484AF2DC660&steamid=" + Convert.ToInt64(offer.PartnerSteamId));
-                    json_items = jsSerializer.Deserialize<InventoryData.RootObject>(json);
-                }
-                catch (WebException e)
-                {
-                    Log.Warn(e.Message);
-                    offer.Decline();
-                    SendChatMessage("Unfortunately, the CS:GO inventory servers are down/delayed, and we are unable to process your transaction. Please try again later. You can view the status of Steam servers at https://steamstat.us/");
-                    return;
-                }
-				
-			}
             // All is well. Accept the trade.
             string tradeid;
             if (offer.Accept(out tradeid))
             {
-                List<Int64> original_ids = new List<Int64>() { Convert.ToInt64(offer.PartnerSteamId) };
+                List<long> asset_ids = new List<long>() { Convert.ToInt64(offer.PartnerSteamId) };
                 // Populate original_ids by comparing the asset_ids to the original_ids in the user's Steam inventory
                 foreach (var x in theirItems)
                 {
-                    foreach (var y in json_items.result.items)
-                    {
-                        if (x.AssetId == y.id)
-                        {
-                            original_ids.Add(y.original_id);
-                        }
-                    }
+                    asset_ids.Add(x.AssetId);
                 }
                 // Send the data to the Socket.io server
-                string json_serialized = jsSerializer.Serialize(original_ids);
                 var socket = IO.Socket("http://localhost:8080");
-                socket.Emit("response", json_serialized);
+                socket.Emit("response", jsSerializer.Serialize(asset_ids));
 
                 Bot.AcceptAllMobileTradeConfirmations();
                 Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
@@ -179,6 +158,15 @@ namespace SteamBot
 
                 items.RemoveAt(0);  // weird hack?
                 SendTradeOffer(steamid64, items);
+            });
+            socket.On("sendtrade", (data) =>
+            {
+                //  im most definitely going to have a brain aneurysm 
+                string json = JsonConvert.SerializeObject(data);
+                POSTData.Offer[] json_items = jsSerializer.Deserialize<POSTData.Offer[]>(json);
+                TradeOffer t;
+                this.Bot.tradeOfferManager.GetOffer(json_items[0].offerId, out t);
+                t.Accept();
             });
         }
         public override void OnMessage(string message, EChatEntryType type) { }
