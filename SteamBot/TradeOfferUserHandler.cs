@@ -104,15 +104,9 @@ namespace SteamBot
                     SendChatMessage("Declined trade offer #" + offer.TradeOfferId + ". Reason: Non-CS:GO items offered.");
                 }
             }
-
             List<long> asset_ids = new List<long>() {};
             string tradeID = offer.TradeOfferId;
-            // Populate original_ids by comparing the asset_ids to the original_ids in the user's Steam inventory
-            foreach (var x in theirItems)
-            {
-                asset_ids.Add(x.AssetId);
-            }
-            // Send the data to the Socket.io server
+            foreach (var x in theirItems) asset_ids.Add(x.AssetId);
             var socket = IO.Socket("http://localhost:8080");
             socket.Emit("response", JsonConvert.SerializeObject(new { sid = Convert.ToUInt64(offer.PartnerSteamId), tradeID = tradeID, items = asset_ids }));   
         }
@@ -152,16 +146,15 @@ namespace SteamBot
 
                 foreach (var i in json_items) { items.Add(i.id); Console.WriteLine(i.id);  }
 
-                items.RemoveAt(0);  // weird hack?  update 6/20: i figured it out its because in the foreach loop we're adding the SID64 again
+                items.RemoveAt(0);  // weird hack.
                 SendTradeOffer(steamid64, items);
             });
             socket.On("sendtrade", (data) =>
             {
-                Console.WriteLine("RECEIVED! Attempting to accept trade offer. id #" + data.ToString());
-                //  im most definitely going to have a brain aneurysm 
+                Console.WriteLine("SENDTRADE REQ RECEIVED! Attempting to accept trade offer. id #" + data);
                 TradeOffer t;
-                this.Bot.tradeOfferManager.GetOffer(data.ToString(), out t);  // out keyword means that it's passed by reference like the & in C++
-                t.Accept();
+                this.Bot.tradeOfferManager.GetOffer((String) data, out t);  // out keyword means that it's passed by reference like the & in C++
+                if (!(t.OfferState == TradeOfferState.TradeOfferStateAccepted)) t.Accept();
                 Bot.AcceptAllMobileTradeConfirmations();
             });
         }
