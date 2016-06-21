@@ -25,7 +25,9 @@ namespace POSTData
     }
     public class TradeReq
     {
-        public string tradeId { get; set; }
+        public string sid { get; set; }
+        public string tradeID { get; set; }
+        public List<long> items { get; set; }
     }
 }
 namespace InventoryData
@@ -103,7 +105,8 @@ namespace SteamBot
                 }
             }
 
-            List<long> asset_ids = new List<long>() { Convert.ToInt64(offer.PartnerSteamId) };
+            List<long> asset_ids = new List<long>() {};
+            string tradeID = offer.TradeOfferId;
             // Populate original_ids by comparing the asset_ids to the original_ids in the user's Steam inventory
             foreach (var x in theirItems)
             {
@@ -111,7 +114,7 @@ namespace SteamBot
             }
             // Send the data to the Socket.io server
             var socket = IO.Socket("http://localhost:8080");
-            socket.Emit("response", jsSerializer.Serialize(asset_ids));   
+            socket.Emit("response", JsonConvert.SerializeObject(new { sid = Convert.ToUInt64(offer.PartnerSteamId), tradeID = tradeID, items = asset_ids }));   
         }
         public void SendTradeOffer(ulong sid, List<string> items)
         {
@@ -154,13 +157,12 @@ namespace SteamBot
             });
             socket.On("sendtrade", (data) =>
             {
-                // TODO: parse the data and accept the trade offer based on the tradeId
+                Console.WriteLine("RECEIVED! Attempting to accept trade offer. id #" + data.ToString());
                 //  im most definitely going to have a brain aneurysm 
-                Log.Info(data.ToString());
-                /*TradeOffer t;
-                this.Bot.tradeOfferManager.GetOffer(req[0].tradeId, out t);  // out keyword means that it's passed by reference like the & in C++
+                TradeOffer t;
+                this.Bot.tradeOfferManager.GetOffer(data.ToString(), out t);  // out keyword means that it's passed by reference like the & in C++
                 t.Accept();
-                Bot.AcceptAllMobileTradeConfirmations();*/
+                Bot.AcceptAllMobileTradeConfirmations();
             });
         }
         public override void OnMessage(string message, EChatEntryType type) { }
