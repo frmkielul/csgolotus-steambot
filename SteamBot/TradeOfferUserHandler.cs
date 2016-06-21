@@ -23,9 +23,9 @@ namespace POSTData
         // # of that item that they want
         public int amt { get; set; }
     }
-    public class Offer
+    public class TradeReq
     {
-        public string offerId { get; set; }
+        public string tradeId { get; set; }
     }
 }
 namespace InventoryData
@@ -102,23 +102,16 @@ namespace SteamBot
                     SendChatMessage("Declined trade offer #" + offer.TradeOfferId + ". Reason: Non-CS:GO items offered.");
                 }
             }
-            // All is well. Accept the trade.
-            string tradeid;
-            if (offer.Accept(out tradeid))
-            {
-                List<long> asset_ids = new List<long>() { Convert.ToInt64(offer.PartnerSteamId) };
-                // Populate original_ids by comparing the asset_ids to the original_ids in the user's Steam inventory
-                foreach (var x in theirItems)
-                {
-                    asset_ids.Add(x.AssetId);
-                }
-                // Send the data to the Socket.io server
-                var socket = IO.Socket("http://localhost:8080");
-                socket.Emit("response", jsSerializer.Serialize(asset_ids));
 
-                Bot.AcceptAllMobileTradeConfirmations();
-                Log.Success("Accepted trade offer successfully : Trade ID: " + tradeid);
+            List<long> asset_ids = new List<long>() { Convert.ToInt64(offer.PartnerSteamId) };
+            // Populate original_ids by comparing the asset_ids to the original_ids in the user's Steam inventory
+            foreach (var x in theirItems)
+            {
+                asset_ids.Add(x.AssetId);
             }
+            // Send the data to the Socket.io server
+            var socket = IO.Socket("http://localhost:8080");
+            socket.Emit("response", jsSerializer.Serialize(asset_ids));   
         }
         public void SendTradeOffer(ulong sid, List<string> items)
         {
@@ -156,17 +149,18 @@ namespace SteamBot
 
                 foreach (var i in json_items) { items.Add(i.id); Console.WriteLine(i.id);  }
 
-                items.RemoveAt(0);  // weird hack?
+                items.RemoveAt(0);  // weird hack?  update 6/20: i figured it out its because in the foreach loop we're adding the SID64 again
                 SendTradeOffer(steamid64, items);
             });
             socket.On("sendtrade", (data) =>
             {
+                // TODO: parse the data and accept the trade offer based on the tradeId
                 //  im most definitely going to have a brain aneurysm 
-                string json = JsonConvert.SerializeObject(data);
-                POSTData.Offer[] json_items = jsSerializer.Deserialize<POSTData.Offer[]>(json);
-                TradeOffer t;
-                this.Bot.tradeOfferManager.GetOffer(json_items[0].offerId, out t);
+                Log.Info(data.ToString());
+                /*TradeOffer t;
+                this.Bot.tradeOfferManager.GetOffer(req[0].tradeId, out t);  // out keyword means that it's passed by reference like the & in C++
                 t.Accept();
+                Bot.AcceptAllMobileTradeConfirmations();*/
             });
         }
         public override void OnMessage(string message, EChatEntryType type) { }
