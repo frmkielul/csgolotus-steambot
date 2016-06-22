@@ -23,12 +23,6 @@ namespace POSTData
         // # of that item that they want
         public int amt { get; set; }
     }
-    public class TradeReq
-    {
-        public string sid { get; set; }
-        public string tradeID { get; set; }
-        public List<long> items { get; set; }
-    }
 }
 namespace InventoryData
 {
