@@ -81,7 +81,8 @@ namespace SteamBot
         public TradeOfferUserHandler(Bot bot, SteamID sid) : base(bot, sid)
         {
             mySteamInventory = otherSteamInventory = new GenericInventory(SteamWeb);
-            if (!SocketCall.HAS_CALLED) socket = IO.Socket("http://localhost:8080");
+            //if (!SocketCall.HAS_CALLED)
+            socket = IO.Socket("http://localhost:8080");
             jsSerializer = new JavaScriptSerializer();
             Connect_Socket();    
         }
@@ -109,29 +110,38 @@ namespace SteamBot
                 }
             }
             string tradeid;
-            if (offer.Accept(out tradeid))
+            try
             {
-                Console.WriteLine("Trade ID (not tradeofferid):" + tradeid);
-                var receiptItems = new TradeOfferReceiptItems();
-                var url = $"https://steamcommunity.com/trade/{tradeid}/receipt";
-                var resp = SteamWeb.Fetch(url, "GET", null, false);
-                var items = Regex.Matches(resp, @"oItem(?:[\s=]+)(?<jsonItem>[^;]*)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-                List<long> newIds = new List<long>();
-                foreach (Match iM in items)
+                if (offer.Accept(out tradeid))
                 {
-                    var g = iM.Groups["jsonItem"];
-                    receiptItems.ReceiptItems.Add(JsonConvert.DeserializeObject<ReceiptItem>(g.Value));
-                    Console.WriteLine(receiptItems.ReceiptItems[0].Id);
+                    Console.WriteLine("Trade ID (not tradeofferid):" + tradeid);
+                    var receiptItems = new TradeOfferReceiptItems();
+                    var url = $"https://steamcommunity.com/trade/{tradeid}/receipt";
+                    var resp = SteamWeb.Fetch(url, "GET", null, false);
+                    var items = Regex.Matches(resp, @"oItem(?:[\s=]+)(?<jsonItem>[^;]*)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                    List<long> newIds = new List<long>();
+                    foreach (Match iM in items)
+                    {
+                        var g = iM.Groups["jsonItem"];
+                        receiptItems.ReceiptItems.Add(JsonConvert.DeserializeObject<ReceiptItem>(g.Value));
+                        Console.WriteLine(receiptItems.ReceiptItems[0].Id);
+                    }
+                    foreach (var x in receiptItems.ReceiptItems)
+                    {
+                        newIds.Add(Convert.ToInt64(x.Id));
+                    }
+                    receiptItems.Success = true;
+                    socket.Emit("response", JsonConvert.SerializeObject(new { sid = Convert.ToUInt64(offer.PartnerSteamId), items = newIds }));
+                    socket.Disconnect();
+                    Bot.AcceptAllMobileTradeConfirmations();
                 }
-                foreach (var x in receiptItems.ReceiptItems)
-                {
-                    newIds.Add(Convert.ToInt64(x.Id));
-                }
-                receiptItems.Success = true;
-                // send newIds to the node server here
-
-                Bot.AcceptAllMobileTradeConfirmations();
             }
+            catch(WebException e)
+            {
+                offer.Decline();
+                SendChatMessage("Unfortunately, the Steam servers are down, and we cannot process your tradeoffer at this time. Please try again later. You can view the status of Steam servers at http://steamstat.us/");
+            }
+            
         }
         // Sending a trade offer
         public void SendTradeOffer(ulong sid, List<string> items)
