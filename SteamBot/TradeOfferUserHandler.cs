@@ -7,6 +7,7 @@ using Quobject.SocketIoClientDotNet.Client;
 using System.Web.Script.Serialization;
 using Newtonsoft.Json;
 using System.Net;
+using System.Text.RegularExpressions;
 
 namespace POSTData
 {
@@ -29,7 +30,6 @@ namespace InventoryData
     public class Attribute
     {
         public UInt64 defindex { get; set; }
-        //public int value { get; set; }
         public float float_value { get; set; }
     }
 
@@ -47,34 +47,44 @@ namespace InventoryData
         public bool flag_cannot_craft { get; set; }
         public List<Attribute> attributes { get; set; }
     }
-
-    public class Result
-    {
-        public int status { get; set; }
-        public List<Item> items { get; set; }
-    }
-
-    public class RootObject
-    {
-        public Result result { get; set; }
-    }
 }
 
 namespace SteamBot
 {
+    public static class SocketCall
+    {
+        public static bool HAS_CALLED = false;
+    }
+    public class ReceiptItem : AssetDescription
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+    }
+    public class TradeOfferReceiptItems
+    {
+        public bool Success { get; set; }
+
+        public List<ReceiptItem> ReceiptItems { get; set; }
+
+        public TradeOfferReceiptItems()
+        {
+            ReceiptItems = new List<ReceiptItem>();
+        }
+    }
     public class TradeOfferUserHandler : UserHandler
     {
         GenericInventory mySteamInventory;
         GenericInventory otherSteamInventory;
         JavaScriptSerializer jsSerializer;
+        Socket socket;
 
         public TradeOfferUserHandler(Bot bot, SteamID sid) : base(bot, sid)
         {
             mySteamInventory = otherSteamInventory = new GenericInventory(SteamWeb);
+            if (!SocketCall.HAS_CALLED) socket = IO.Socket("http://localhost:8080");
             jsSerializer = new JavaScriptSerializer();
-            Connect_Socket();
+            Connect_Socket();    
         }
-
         // Receiving a trade offer
         public override void OnNewTradeOffer(TradeOffer offer)
         {
@@ -101,9 +111,9 @@ namespace SteamBot
             List<long> asset_ids = new List<long>() {};
             string tradeID = offer.TradeOfferId;
             foreach (var x in theirItems) asset_ids.Add(x.AssetId);
-            var socket = IO.Socket("http://localhost:8080");
-            socket.Emit("response", JsonConvert.SerializeObject(new { sid = Convert.ToUInt64(offer.PartnerSteamId), tradeID = tradeID, items = asset_ids }));   
+            socket.Emit("response", JsonConvert.SerializeObject(new { sid = Convert.ToUInt64(offer.PartnerSteamId), tradeID = tradeID, items = asset_ids }));
         }
+        // Sending a trade offer
         public void SendTradeOffer(ulong sid, List<string> items)
         {
             SteamID playerSID = new SteamID(sid);
@@ -126,8 +136,9 @@ namespace SteamBot
         }
         public void Connect_Socket()
         {
-            // Setup the connection to the server
-            var socket = IO.Socket("http://localhost:8080");
+            // Prevent multiple sockets from opening. Hackey workaround, as always.
+            if (SocketCall.HAS_CALLED) return;
+            SocketCall.HAS_CALLED = true;
 
             socket.On("gamedata", (data) =>
             {
@@ -143,12 +154,35 @@ namespace SteamBot
                 items.RemoveAt(0);  // weird hack.
                 SendTradeOffer(steamid64, items);
             });
-            socket.On("sendtrade", (data) =>
-            {
+            socket.On("sendtrade", (data) => {
                 Console.WriteLine("SENDTRADE REQ RECEIVED! Attempting to accept trade offer. id #" + data);
                 TradeOffer t;
-                this.Bot.tradeOfferManager.GetOffer((String) data, out t);  // out keyword means that it's passed by reference like the & in C++
-                if (!(t.OfferState == TradeOfferState.TradeOfferStateAccepted)) t.Accept();
+
+                this.Bot.tradeOfferManager.GetOffer((String)data, out t); // out keyword means that it's passed by reference like the & in C++
+                if (!(t.OfferState == TradeOfferState.TradeOfferStateAccepted))
+                {
+                    string tId;
+                    t.Accept(out tId);
+                    
+                    Console.WriteLine("Trade ID (not tradeofferid):" + tId);
+                    var receiptItems = new TradeOfferReceiptItems();
+                    var url = $"https://steamcommunity.com/trade/{tId}/receipt";
+                    var resp = SteamWeb.Fetch(url, "GET", null, false);
+                    var items = Regex.Matches(resp, @"oItem(?:[\s=]+)(?<jsonItem>[^;]*)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                    List<long> newIds = new List<long>();
+                    foreach (Match iM in items)
+                    {
+                        var g = iM.Groups["jsonItem"];
+                        receiptItems.ReceiptItems.Add(JsonConvert.DeserializeObject<ReceiptItem>(g.Value));
+                        Console.WriteLine(receiptItems.ReceiptItems[0].Id);
+                    }
+                    foreach (var x in receiptItems.ReceiptItems)
+                    {
+                        newIds.Add(Convert.ToInt64(x.Id));
+                    }
+                    receiptItems.Success = true;
+                    // TODO 6/24/16: Send the newIds to the Node server, then the bot will have completed it's job
+                }
                 Bot.AcceptAllMobileTradeConfirmations();
             });
         }
