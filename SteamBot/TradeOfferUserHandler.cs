@@ -108,10 +108,30 @@ namespace SteamBot
                     SendChatMessage("Declined trade offer #" + offer.TradeOfferId + ". Reason: Non-CS:GO items offered.");
                 }
             }
-            List<long> asset_ids = new List<long>() {};
-            string tradeID = offer.TradeOfferId;
-            foreach (var x in theirItems) asset_ids.Add(x.AssetId);
-            socket.Emit("response", JsonConvert.SerializeObject(new { sid = Convert.ToUInt64(offer.PartnerSteamId), tradeID = tradeID, items = asset_ids }));
+            string tradeid;
+            if (offer.Accept(out tradeid))
+            {
+                Console.WriteLine("Trade ID (not tradeofferid):" + tradeid);
+                var receiptItems = new TradeOfferReceiptItems();
+                var url = $"https://steamcommunity.com/trade/{tradeid}/receipt";
+                var resp = SteamWeb.Fetch(url, "GET", null, false);
+                var items = Regex.Matches(resp, @"oItem(?:[\s=]+)(?<jsonItem>[^;]*)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                List<long> newIds = new List<long>();
+                foreach (Match iM in items)
+                {
+                    var g = iM.Groups["jsonItem"];
+                    receiptItems.ReceiptItems.Add(JsonConvert.DeserializeObject<ReceiptItem>(g.Value));
+                    Console.WriteLine(receiptItems.ReceiptItems[0].Id);
+                }
+                foreach (var x in receiptItems.ReceiptItems)
+                {
+                    newIds.Add(Convert.ToInt64(x.Id));
+                }
+                receiptItems.Success = true;
+                // send newIds to the node server here
+
+                Bot.AcceptAllMobileTradeConfirmations();
+            }
         }
         // Sending a trade offer
         public void SendTradeOffer(ulong sid, List<string> items)
@@ -153,37 +173,6 @@ namespace SteamBot
 
                 items.RemoveAt(0);  // weird hack.
                 SendTradeOffer(steamid64, items);
-            });
-            socket.On("sendtrade", (data) => {
-                Console.WriteLine("SENDTRADE REQ RECEIVED! Attempting to accept trade offer. id #" + data);
-                TradeOffer t;
-
-                this.Bot.tradeOfferManager.GetOffer((String)data, out t); // out keyword means that it's passed by reference like the & in C++
-                if (!(t.OfferState == TradeOfferState.TradeOfferStateAccepted))
-                {
-                    string tId;
-                    t.Accept(out tId);
-                    
-                    Console.WriteLine("Trade ID (not tradeofferid):" + tId);
-                    var receiptItems = new TradeOfferReceiptItems();
-                    var url = $"https://steamcommunity.com/trade/{tId}/receipt";
-                    var resp = SteamWeb.Fetch(url, "GET", null, false);
-                    var items = Regex.Matches(resp, @"oItem(?:[\s=]+)(?<jsonItem>[^;]*)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-                    List<long> newIds = new List<long>();
-                    foreach (Match iM in items)
-                    {
-                        var g = iM.Groups["jsonItem"];
-                        receiptItems.ReceiptItems.Add(JsonConvert.DeserializeObject<ReceiptItem>(g.Value));
-                        Console.WriteLine(receiptItems.ReceiptItems[0].Id);
-                    }
-                    foreach (var x in receiptItems.ReceiptItems)
-                    {
-                        newIds.Add(Convert.ToInt64(x.Id));
-                    }
-                    receiptItems.Success = true;
-                    // TODO 6/24/16: Send the newIds to the Node server, then the bot will have completed it's job
-                }
-                Bot.AcceptAllMobileTradeConfirmations();
             });
         }
         public override void OnMessage(string message, EChatEntryType type) { }
