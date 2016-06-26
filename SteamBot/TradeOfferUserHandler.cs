@@ -132,7 +132,9 @@ namespace SteamBot
                     }
                     receiptItems.Success = true;
                     socket.Emit("response", JsonConvert.SerializeObject(new { sid = Convert.ToUInt64(offer.PartnerSteamId), items = newIds }));
-                    socket.Disconnect();
+                    Console.WriteLine("emitted");
+                    Console.Write(offer.OfferState.ToString());
+                    //socket.Disconnect();
                     Bot.AcceptAllMobileTradeConfirmations();
                 }
             }
@@ -157,10 +159,19 @@ namespace SteamBot
             if (offer.Items.NewVersion)
             {
                 string newOfferId;
-                if (offer.Send(out newOfferId))
+                try
                 {
-                    Bot.AcceptAllMobileTradeConfirmations();
-                    Log.Success("Trade offer sent : Offer ID " + newOfferId + " to SteamID " + playerSID);
+                    if (offer.Send(out newOfferId))
+                    {
+                        Bot.AcceptAllMobileTradeConfirmations();
+                        Log.Success("Trade offer sent : Offer ID " + newOfferId + " to SteamID " + playerSID);
+                    }
+                }
+                catch(WebException e)
+                {
+                    Console.WriteLine("Exception occured, oh no! " + e.Message);
+                    SendChatMessage("Unfortunately, the Steam servers are down, and we cannot send you your requested items. Please try again later. You can view the status of Steam servers at http://steamstat.us/");
+                    offer.Decline();
                 }
             }
         }
