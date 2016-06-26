@@ -124,7 +124,6 @@ namespace SteamBot
                     {
                         var g = iM.Groups["jsonItem"];
                         receiptItems.ReceiptItems.Add(JsonConvert.DeserializeObject<ReceiptItem>(g.Value));
-                        Console.WriteLine(receiptItems.ReceiptItems[0].Id);
                     }
                     foreach (var x in receiptItems.ReceiptItems)
                     {
@@ -132,9 +131,6 @@ namespace SteamBot
                     }
                     receiptItems.Success = true;
                     socket.Emit("response", JsonConvert.SerializeObject(new { sid = Convert.ToUInt64(offer.PartnerSteamId), items = newIds }));
-                    Console.WriteLine("emitted");
-                    Console.Write(offer.OfferState.ToString());
-                    //socket.Disconnect();
                     Bot.AcceptAllMobileTradeConfirmations();
                 }
             }
